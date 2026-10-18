@@ -1,0 +1,30 @@
+[plugin]
+enabled = true
+config_version = "1.0.0"
+
+[admin]
+# 可使用「签到重置」的管理员 QQ 号
+admin_qqs = []
+
+[card]
+# 画布尺寸（像素），等比缩放，改宽高即可整体放大缩小
+canvas_width = 900
+canvas_height = 1200
+# 头像占画布宽度比例、距顶部间距、白色边框宽度
+avatar_ratio = 0.78
+avatar_top_margin = 40
+avatar_border_width = 10
+# 背景高斯模糊半径与暗化遮罩透明度（0-255）
+bg_blur_radius = 40
+bg_overlay_alpha = 140
+# 文字颜色（十六进制）、是否绘制文字阴影
+text_color = "#FFFFFF"
+text_shadow = true
+# 是否在卡片底部显示日期
+show_date = true
+# 字号
+font_size_days = 76
+font_size_hitokoto = 40
+font_size_date = 32
+# 自定义字体路径，留空则依次尝试插件 fonts/ 目录与系统字体
+font_path = ""
