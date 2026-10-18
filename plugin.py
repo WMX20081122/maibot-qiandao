@@ -5,19 +5,20 @@
     签到           生成精美签到卡片
     签到排行榜      累计签到排行榜
     连续签到排行榜  连续签到排行榜
-    签到数据        查看数据库路径与统计
-    签到重置        清空签到数据（仅管理员）
+    签到数据        查看聚合统计（仅操作员）
+    签到重置        清空签到数据（仅操作员）
+
+操作员由主程序 bot_config.toml 的 [plugin].permission 配置（如 "qq:123456789"）。
 """
 
 from __future__ import annotations
 
 import base64
 import json
-import os
 import random
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import aiohttp
 
@@ -71,12 +72,14 @@ class QiandaoPlugin(MaiBotPlugin):
 
     @Command("签到", description="生成精美签到卡片", pattern=r"^签到\s*$")
     async def cmd_qiandao(self, stream_id: str = "", **kwargs: Any) -> tuple:
+        if not self._plugin_enabled():
+            return True, None, False
         user_id = self._extract_user_id(kwargs)
         if not user_id:
             await self._reply(stream_id, "无法获取发送者 QQ，请重试。")
             return True, None, False
 
-        nickname = await self._get_nickname(user_id)
+        nickname = await self._get_nickname(user_id, str(kwargs.get("platform") or ""))
         if not nickname:
             nickname = "用户"
 
@@ -123,6 +126,8 @@ class QiandaoPlugin(MaiBotPlugin):
     @Command("签到排行榜", description="累计签到排行榜", pattern=r"^签到排行榜\s*$")
     async def cmd_rank_total(self, stream_id: str = "", **kwargs: Any) -> tuple:
         del kwargs
+        if not self._plugin_enabled():
+            return True, None, False
         if not self._db:
             await self._reply(stream_id, "暂无签到记录，快来签到吧！")
             return True, None, False
@@ -140,6 +145,8 @@ class QiandaoPlugin(MaiBotPlugin):
     @Command("连续签到排行榜", description="连续签到排行榜", pattern=r"^连续签到排行榜\s*$")
     async def cmd_rank_streak(self, stream_id: str = "", **kwargs: Any) -> tuple:
         del kwargs
+        if not self._plugin_enabled():
+            return True, None, False
         if not self._db:
             await self._reply(stream_id, "暂无签到记录，快来签到吧！")
             return True, None, False
@@ -154,37 +161,30 @@ class QiandaoPlugin(MaiBotPlugin):
         await self._reply(stream_id, "\n".join(lines))
         return True, None, False
 
-    @Command("签到数据", description="查看数据库路径和统计", pattern=r"^签到数据\s*$")
+    @Command("签到数据", description="查看签到统计（仅操作员）", pattern=r"^签到数据\s*$", permission="operator")
     async def cmd_data(self, stream_id: str = "", **kwargs: Any) -> tuple:
         del kwargs
-        abs_path = self._db_file.resolve()
+        if not self._plugin_enabled():
+            return True, None, False
         user_count = len(self._db)
+        total_days = sum(int(data.get("days", 0) or 0) for data in self._db.values())
+        max_streak = max((int(data.get("streak", 0) or 0) for data in self._db.values()), default=0)
+        today = date.today().isoformat()
+        today_count = sum(1 for data in self._db.values() if data.get("last_date") == today)
         lines = [
-            "=== 签到数据库 ===",
-            f"路径: {abs_path}",
-            f"存在: {'是' if self._db_file.exists() else '否'}",
+            "=== 签到统计 ===",
             f"用户数: {user_count}",
+            f"累计签到总天数: {total_days}",
+            f"今日已签到: {today_count}",
+            f"最长连续签到: {max_streak} 天",
         ]
-        if user_count > 0:
-            lines.append("")
-            lines.append("=== 记录（前10）===")
-            sorted_users = sorted(self._db.items(), key=lambda x: x[1].get("days", 0), reverse=True)[:10]
-            for i, (uid, data) in enumerate(sorted_users, 1):
-                days = data.get("days", 0)
-                streak = data.get("streak", 0)
-                last = data.get("last_date", "从未")
-                nick = data.get("nickname", "未知")
-                lines.append(f"{i}. {nick}({uid}): 累计{days}天 | 连续{streak}天 | {last}")
         await self._reply(stream_id, "\n".join(lines))
         return True, None, False
 
-    @Command("签到重置", description="清空签到数据（管理员）", pattern=r"^签到重置\s*$")
+    @Command("签到重置", description="清空签到数据（仅操作员）", pattern=r"^签到重置\s*$", permission="operator")
     async def cmd_reset(self, stream_id: str = "", **kwargs: Any) -> tuple:
-        sender_qq = self._extract_user_id(kwargs)
-        if sender_qq is None or sender_qq not in self._normalized_admin_qqs():
-            await self._reply(stream_id, "❌ 权限不足！只有管理员才能重置。")
+        if not self._plugin_enabled():
             return True, None, False
-        self.ctx.logger.warning(f"[签到] 管理员 {sender_qq} 重置数据")
         old_count = len(self._db)
         self._db.clear()
         try:
@@ -193,22 +193,31 @@ class QiandaoPlugin(MaiBotPlugin):
         except Exception as exc:
             self.ctx.logger.warning(f"删除签到文件失败: {exc}")
         self._save_db()
+        self.ctx.logger.warning(f"[签到] 操作员重置数据，清除 {old_count} 位用户")
         await self._reply(stream_id, f"✅ 已重置！清除了 {old_count} 位用户的记录。")
         return True, None, False
 
     # ---- 工具 ----
 
-    def _normalized_admin_qqs(self) -> List[str]:
-        return [str(qq).strip() for qq in self.config.admin.admin_qqs if str(qq).strip()]
+    def _plugin_enabled(self) -> bool:
+        try:
+            return bool(self.config.plugin.enabled)
+        except Exception:
+            return True
 
     @staticmethod
     def _extract_user_id(kwargs: Dict[str, Any]) -> Optional[str]:
-        base_info = kwargs.get("message_base_info") or {}
-        user_info = base_info.get("user_info") if isinstance(base_info, dict) else {}
-        user_id = kwargs.get("user_id") or (user_info.get("user_id") if isinstance(user_info, dict) else None)
-        if user_id in (None, ""):
-            return None
-        return str(user_id).strip()
+        """取发送者 ID：优先命令参数里的 ``user_id``，再回退 ``message`` 报文。"""
+        user_id = kwargs.get("user_id")
+        if user_id:
+            return str(user_id).strip()
+        message = kwargs.get("message")
+        if isinstance(message, dict):
+            info = message.get("message_info") or {}
+            user_info = info.get("user_info") if isinstance(info, dict) else None
+            if isinstance(user_info, dict) and user_info.get("user_id"):
+                return str(user_info["user_id"]).strip()
+        return None
 
     async def _reply(self, stream_id: str, text: str) -> None:
         if not stream_id or not text:
@@ -234,7 +243,27 @@ class QiandaoPlugin(MaiBotPlugin):
             self.ctx.logger.debug(f"调用 NapCat 动作 {action_name} 失败: {exc}")
             return None
 
-    async def _get_nickname(self, user_id: str) -> str:
+    async def _get_nickname(self, user_id: str, platform: str = "") -> str:
+        nickname = await self._get_person_nickname(platform, user_id)
+        if nickname:
+            return nickname
+        return await self._get_napcat_nickname(user_id)
+
+    async def _get_person_nickname(self, platform: str, user_id: str) -> str:
+        """优先从主程序人物库读取昵称。"""
+        if not platform:
+            return ""
+        try:
+            person_id = await self.ctx.person.get_id(platform, user_id)
+            if not isinstance(person_id, str) or not person_id:
+                return ""
+            nickname = await self.ctx.person.get_value(person_id, "nickname")
+            return nickname.strip() if isinstance(nickname, str) else ""
+        except Exception as exc:
+            self.ctx.logger.debug(f"[签到] 读取人物昵称失败: {exc}")
+            return ""
+
+    async def _get_napcat_nickname(self, user_id: str) -> str:
         info = await self._call_napcat(
             "get_stranger_info",
             {"user_id": int(user_id) if user_id.isdigit() else user_id, "no_cache": True},

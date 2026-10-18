@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, List
+from typing import ClassVar
 
 from maibot_sdk import Field, PluginConfigBase
 
@@ -21,30 +21,14 @@ class PluginSection(PluginConfigBase):
         },
     )
     config_version: str = Field(
-        default="1.0.0",
+        default="1.0.1",
         json_schema_extra={"disabled": True, "hidden": True, "label": "配置版本", "order": 99},
-    )
-
-
-class AdminSection(PluginConfigBase):
-    __ui_label__: ClassVar[str] = "管理员"
-    __ui_order__: ClassVar[int] = 1
-
-    admin_qqs: List[str] = Field(
-        default_factory=list,
-        description="管理员 QQ 号列表。",
-        json_schema_extra={
-            "hint": "只有这些 QQ 能用「签到重置」命令。",
-            "label": "管理员 QQ",
-            "order": 0,
-            "placeholder": "请输入 QQ 号",
-        },
     )
 
 
 class CardSection(PluginConfigBase):
     __ui_label__: ClassVar[str] = "签到卡片"
-    __ui_order__: ClassVar[int] = 2
+    __ui_order__: ClassVar[int] = 1
 
     canvas_width: int = Field(
         default=900, ge=300, le=2000,
@@ -112,5 +96,4 @@ class CardSection(PluginConfigBase):
 
 class QiandaoConfig(PluginConfigBase):
     plugin: PluginSection = Field(default_factory=PluginSection)
-    admin: AdminSection = Field(default_factory=AdminSection)
     card: CardSection = Field(default_factory=CardSection)

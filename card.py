@@ -82,7 +82,7 @@ class QiandaoCard:
         self._font_path = str(font_path) if font_path else None
 
     def _get(self, key, default):
-        return getattr(self._cfg, key, None) if self._cfg is not None else None or default
+        return getattr(self._cfg, key, default)
 
     def create(self, avatar_bytes: bytes, days: int, hitokoto: str, nickname: str) -> bytes:
         """生成签到卡片 PNG，返回字节流。"""

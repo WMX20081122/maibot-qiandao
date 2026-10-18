@@ -4,9 +4,9 @@
 
 **一句「签到」，生成属于你的每日卡片**
 
-[![MaiBot](https://img.shields.io/badge/MaiBot-1.0.0%2B-00a66a?style=flat-square)](https://github.com/Mai-with-u/MaiBot)
-[![SDK](https://img.shields.io/badge/SDK-2.x-2f5fff?style=flat-square)](https://github.com/Mai-with-u/MaiBot)
-[![Version](https://img.shields.io/badge/version-1.0.0-orange?style=flat-square)](#)
+[![MaiBot](https://img.shields.io/badge/MaiBot-1.3.0%20~%201.3.99-00a66a?style=flat-square)](https://github.com/Mai-with-u/MaiBot)
+[![SDK](https://img.shields.io/badge/SDK-2.12.0%20~%202.99.99-2f5fff?style=flat-square)](https://github.com/Mai-with-u/MaiBot)
+[![Version](https://img.shields.io/badge/version-1.0.1-orange?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
 <img src="docs/card-preview.png" width="380" alt="签到卡片预览" />
@@ -32,8 +32,17 @@
 | `签到` | 生成今日签到卡片 | 所有人 |
 | `签到排行榜` | 累计签到天数排行榜（Top 15） | 所有人 |
 | `连续签到排行榜` | 连续签到天数排行榜（Top 15） | 所有人 |
-| `签到数据` | 查看数据库路径、用户数与记录明细 | 所有人 |
-| `签到重置` | 清空全部签到数据 | 仅管理员 |
+| `签到数据` | 查看聚合统计（用户数 / 总天数 / 今日签到 / 最长连续） | 仅操作员 |
+| `签到重置` | 清空全部签到数据 | 仅操作员 |
+
+「签到数据」「签到重置」是操作员级别命令，由主程序统一鉴权（不再使用插件内管理员名单）。操作员在 `bot_config.toml` 的 `[plugin]` 段配置：
+
+```toml
+[plugin]
+permission = ["qq:123456789"]   # 格式为 platform:id
+```
+
+也可以在主程序 WebUI 的 **Bot 配置 → 命令** 中维护，或为单条命令配置 `[plugin.command_permissions.<插件 ID>.<命令名>]` 的 `allow_users` / `allow_chats`。未获授权的用户发送这两条命令时由主程序直接提示「没有权限」。
 
 ## 🚀 快速安装
 
@@ -56,13 +65,13 @@ MaiBot/plugins/WMX20081122_maibot-qiandao/
 pip install aiohttp pillow
 ```
 
-### 3. 配置管理员
+### 3. 配置操作员
 
-复制 `config.example.toml` 为 `config.toml`，至少填上管理员 QQ（用于重置数据）：
+复制 `config.example.toml` 为 `config.toml` 可按需调整卡片外观；要使用 `签到数据` / `签到重置`，在主程序的 `bot_config.toml` 里把操作员加进 `[plugin].permission`：
 
 ```toml
-[admin]
-admin_qqs = ["你的QQ号"]
+[plugin]
+permission = ["qq:你的QQ号"]
 ```
 
 ### 4. 重载插件
@@ -93,8 +102,9 @@ admin_qqs = ["你的QQ号"]
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `plugin.enabled` | `true` | 插件总开关 |
-| `admin.admin_qqs` | `[]` | 管理员 QQ 列表，仅这些人可用「签到重置」 |
+| `plugin.enabled` | `true` | 插件总开关，关闭后所有签到命令都不再响应 |
+
+> 📌 操作员权限不存放在插件配置里：请在主程序 `bot_config.toml` 的 `[plugin].permission` 中配置 `platform:id`（如 `qq:123456789`）。
 
 ## 🔤 使用自定义字体
 
@@ -126,15 +136,39 @@ MaiBot 运行时分配给插件的数据目录下的 `qiandao.json`。旧版本�
 <details>
 <summary>如何清空全部签到数据？</summary>
 
-管理员发送 `签到重置`，或直接删除数据目录下的 `qiandao.json` 后重载插件。
+操作员（已在 `bot_config.toml` 的 `[plugin].permission` 中配置）发送 `签到重置`，或直接删除数据目录下的 `qiandao.json` 后重载插件。
+
+</details>
+
+<details>
+<summary>发送「签到数据」「签到重置」提示没有权限？</summary>
+
+这两条是操作员级别命令，由主程序鉴权。把自己的账号按 `platform:id` 格式（QQ 平台即 `qq:QQ号`）加入 `bot_config.toml` 的 `[plugin].permission`，保存后重载插件或重启主程序。
 
 </details>
 
 ## 🧱 环境要求
 
-- MaiBot ≥ 1.0.0，插件 SDK 2.x
-- 适配器插件 [`maibot-team.snowluma-adapter`](https://github.com/Mai-with-u/MaiBot-SnowLuma-Adapter)（用于取用户昵称）
+- MaiBot ≥ 1.3.0，插件 SDK ≥ 2.12.0（`_manifest.json` 声明区间：Host 1.3.0 ~ 1.3.99、SDK 2.12.0 ~ 2.99.99，按实测版本收紧）
+- 依赖适配器插件 [`maibot-team.snowluma-adapter`](https://github.com/Mai-with-u/MaiBot-SnowLuma-Adapter) ≥ 0.1.0（`_manifest.json` 中的插件级依赖；用于取用户昵称的回退通道）
 - Python 依赖：`aiohttp`、`Pillow`
+
+> 📌 MaiBot 发布 1.4 后我们会跟进更新测试与区间声明。
+
+## 📝 更新日志
+
+### v1.0.1
+
+- 🔐 `签到数据` / `签到重置` 改为操作员级别命令（`permission="operator"`），改由主程序 `bot_config.toml` 的 `[plugin].permission` 鉴权，移除插件内 `admin_qqs` 自比对
+- 🕵️ `签到数据` 不再输出数据库绝对路径与逐条用户记录，仅展示聚合统计（用户数、累计总天数、今日签到、最长连续）
+- 🔗 `_manifest.json` 补充插件依赖 `maibot-team.snowluma-adapter >= 0.1.0`，声明 `person.get_id` / `person.get_value` 能力
+- 👤 昵称获取优先走主程序人物库（`ctx.person.get_value`），失败再回退 NapCat `get_stranger_info`
+- 🐛 修复 `plugin.enabled` 未被读取的问题；修复卡片配置读取的默认值优先级 bug
+- 📦 版本区间按实测版本收紧为 Host 1.3.0 ~ 1.3.99、SDK 2.12.0 ~ 2.99.99；插件版本升级到 1.0.1
+
+### v1.0.0
+
+- 🎉 首次发布：签到卡片、累计/连续排行榜、一言、可配置卡片外观
 
 ## 🙏 致谢
 

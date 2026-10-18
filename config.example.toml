@@ -1,10 +1,10 @@
+# 操作员权限（「签到数据」「签到重置」）由主程序配置，不在本文件：
+# 编辑 bot_config.toml 的 [plugin] 段，加入 platform:id，例如
+# permission = ["qq:123456789"]
+
 [plugin]
 enabled = true
-config_version = "1.0.0"
-
-[admin]
-# 可使用「签到重置」的管理员 QQ 号
-admin_qqs = []
+config_version = "1.0.1"
 
 [card]
 # 画布尺寸（像素），等比缩放，改宽高即可整体放大缩小
